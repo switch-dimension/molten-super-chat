@@ -30,6 +30,7 @@ A ChatGPT-style web app with multi-model support. Pick any model when starting a
 
 - **Project**: `molten-super-chat` (linked via `railway link` in this directory).
 - **Service**: `web`. Set `DATABASE_URL` and the three AI API keys as service variables (or use Railway Postgres and `${{Postgres.DATABASE_URL}}`).
+- **Deploy on push**: The `web` service is configured to build from `https://github.com/switch-dimension/molten-super-chat` on the `main` branch. Ensure your Railway workspace is connected to GitHub (dashboard → project/workspace settings) so pushes to `main` trigger automatic deploys.
 - **Domain**: Generate or view the default `*.railway.app` domain in the service’s Networking settings. Custom domain: `railway domain <your-domain.com> --service web`.
 - **Migrations**: Before or after first deploy, run schema against the deployment DB: `DATABASE_URL='<url>' pnpm db:push` (or your migrate command). Use the same `DATABASE_URL` as configured on Railway.
 
