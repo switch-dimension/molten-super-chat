@@ -1,4 +1,5 @@
 import { streamText } from 'ai';
+import { formatAiErrorMessage } from './error-message';
 import { registry } from './provider-registry';
 import { getModelById } from './model-catalog';
 
@@ -59,7 +60,7 @@ export async function streamCompareResponse({
           }
           results.push({ modelKey, text: full });
         } catch (err) {
-          const message = err instanceof Error ? err.message : String(err);
+          const message = formatAiErrorMessage(err);
           controller.enqueue(enqueue({ modelKey, type: 'error', error: message }));
           results.push({ modelKey, text: '' });
         }

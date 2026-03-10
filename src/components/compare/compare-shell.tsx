@@ -2,6 +2,7 @@
 
 import { useCallback, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { formatAiErrorMessage, getApiErrorMessage } from '@/lib/ai/error-message';
 import { ModelColumn } from './model-column';
 import { MODEL_CATALOG, getDefaultModelId } from '@/lib/ai/model-catalog';
 
@@ -23,6 +24,7 @@ export function CompareShell({ chatId }: CompareShellProps) {
   const [streamingModels, setStreamingModels] = useState<Set<string>>(new Set());
   const [branchIds, setBranchIds] = useState<Record<string, string>>({});
   const [continueStreaming, setContinueStreaming] = useState<Record<string, string>>({});
+  const [globalError, setGlobalError] = useState<string | null>(null);
 
   const fetchBranches = useCallback(async () => {
     try {
@@ -59,6 +61,7 @@ export function CompareShell({ chatId }: CompareShellProps) {
       const text = prompt.trim();
       if (!text || selectedIds.length === 0) return;
 
+      setGlobalError(null);
       setStreaming(true);
       setStreamingModels(new Set(selectedIds));
       setOutputs((prev) => {
@@ -79,6 +82,9 @@ export function CompareShell({ chatId }: CompareShellProps) {
             selectedModels: selectedIds,
           }),
         });
+        if (!res.ok) {
+          throw new Error(await getApiErrorMessage(res));
+        }
         if (!res.body) throw new Error('No body');
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
@@ -94,7 +100,8 @@ export function CompareShell({ chatId }: CompareShellProps) {
               try {
                 const data = JSON.parse(line.slice(6));
                 if (data.error) {
-                  setOutputs((o) => ({ ...o, [data.modelKey]: { ...o[data.modelKey], error: data.error } }));
+                  const formatted = formatAiErrorMessage(data.error);
+                  setOutputs((o) => ({ ...o, [data.modelKey]: { ...o[data.modelKey], error: formatted } }));
                   setStreamingModels((s) => {
                     const n = new Set(s);
                     n.delete(data.modelKey);
@@ -123,7 +130,8 @@ export function CompareShell({ chatId }: CompareShellProps) {
           }
         }
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
+        const message = formatAiErrorMessage(err);
+        setGlobalError(message);
         setOutputs((o) => {
           const next = { ...o };
           selectedIds.forEach((id) => {
@@ -162,6 +170,8 @@ export function CompareShell({ chatId }: CompareShellProps) {
     async (branchId: string, continuePrompt: string) => {
       const modelKey = Object.entries(branchIds).find(([, id]) => id === branchId)?.[0];
       if (!modelKey) return;
+      setGlobalError(null);
+      setOutputs((o) => ({ ...o, [modelKey]: { ...o[modelKey], error: undefined } }));
       setContinueStreaming((prev) => ({ ...prev, [modelKey]: '' }));
       try {
         const res = await fetch('/api/compare/continue', {
@@ -169,6 +179,9 @@ export function CompareShell({ chatId }: CompareShellProps) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ branchId, prompt: continuePrompt }),
         });
+        if (!res.ok) {
+          throw new Error(await getApiErrorMessage(res));
+        }
         if (!res.body) throw new Error('No body');
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
@@ -184,7 +197,7 @@ export function CompareShell({ chatId }: CompareShellProps) {
           [modelKey]: { text: (o[modelKey]?.text ?? '') + (o[modelKey]?.text ? '\n\n---\n\n' : '') + full },
         }));
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
+        const message = formatAiErrorMessage(err);
         setOutputs((o) => ({ ...o, [modelKey]: { ...o[modelKey], error: message } }));
       } finally {
         setContinueStreaming((prev) => {
@@ -259,6 +272,13 @@ export function CompareShell({ chatId }: CompareShellProps) {
             {streaming ? 'Streaming…' : 'Compare'}
           </button>
         </form>
+
+        {globalError && (
+          <div className="mx-auto mt-6 max-w-5xl rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200">
+            <div className="font-medium">Compare request failed</div>
+            <div className="mt-1">{globalError}</div>
+          </div>
+        )}
 
         {selectedIds.length > 0 && (Object.keys(outputs).length > 0 || streaming) && (
           <div className="mx-auto mt-8 grid max-w-5xl gap-4 sm:grid-cols-2 lg:grid-cols-3">

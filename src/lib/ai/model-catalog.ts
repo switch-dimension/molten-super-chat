@@ -1,6 +1,6 @@
 /**
  * UI-facing model catalog. Use registry.languageModel(id) for actual provider resolution.
- * Format: providerId:modelId (e.g. openai:gpt-4o, anthropic:claude-sonnet-4-20250514)
+ * Format: providerId:modelId (e.g. openai:gpt-5.4, anthropic:claude-opus-4-6)
  */
 export interface CatalogModel {
   id: string;
@@ -11,21 +11,23 @@ export interface CatalogModel {
 
 export const MODEL_CATALOG: CatalogModel[] = [
   // OpenAI
-  { id: 'openai:gpt-4o', label: 'GPT-4o', provider: 'openai', description: 'Fast, capable' },
-  { id: 'openai:gpt-4o-mini', label: 'GPT-4o mini', provider: 'openai', description: 'Fast, affordable' },
-  { id: 'openai:gpt-4.1', label: 'GPT-4.1', provider: 'openai', description: 'Latest GPT-4' },
-  { id: 'openai:gpt-4.1-mini', label: 'GPT-4.1 mini', provider: 'openai', description: 'Smaller, fast' },
-  { id: 'openai:gpt-3.5-turbo', label: 'GPT-3.5 Turbo', provider: 'openai', description: 'Legacy, cheap' },
+  { id: 'openai:gpt-5.4', label: 'GPT-5.4', provider: 'openai', description: 'Latest general model' },
+  { id: 'openai:gpt-5.4-pro', label: 'GPT-5.4 Pro', provider: 'openai', description: 'Highest-end GPT-5.4' },
+  { id: 'openai:gpt-5.3-chat', label: 'GPT-5.3 Chat', provider: 'openai', description: 'Chat-optimized GPT-5.3' },
+  { id: 'openai:gpt-5.2-pro', label: 'GPT-5.2 Pro', provider: 'openai', description: 'Strong reasoning fallback' },
+  { id: 'openai:gpt-4o', label: 'GPT-4o', provider: 'openai', description: 'Fast multimodal fallback' },
   // Anthropic
-  { id: 'anthropic:claude-sonnet-4-20250514', label: 'Claude Sonnet 4', provider: 'anthropic', description: 'Balanced' },
+  { id: 'anthropic:claude-opus-4-6', label: 'Claude Opus 4.6', provider: 'anthropic', description: 'Latest flagship' },
+  { id: 'anthropic:claude-opus-4-5', label: 'Claude Opus 4.5', provider: 'anthropic', description: 'Requested Opus 4.5 option' },
+  { id: 'anthropic:claude-sonnet-4-6', label: 'Claude Sonnet 4.6', provider: 'anthropic', description: 'Latest balanced model' },
   { id: 'anthropic:claude-sonnet-4-5', label: 'Claude Sonnet 4.5', provider: 'anthropic', description: 'Strong reasoning' },
-  { id: 'anthropic:claude-haiku-4-5', label: 'Claude Haiku 4.5', provider: 'anthropic', description: 'Fast' },
-  { id: 'anthropic:claude-opus-4-5', label: 'Claude Opus 4.5', provider: 'anthropic', description: 'Most capable' },
+  { id: 'anthropic:claude-haiku-4-5', label: 'Claude Haiku 4.5', provider: 'anthropic', description: 'Fast and cheap' },
   // Google
-  { id: 'google:gemini-2.5-pro', label: 'Gemini 2.5 Pro', provider: 'google', description: 'Latest Pro' },
-  { id: 'google:gemini-2.5-flash', label: 'Gemini 2.5 Flash', provider: 'google', description: 'Fast' },
-  { id: 'google:gemini-2.0-flash', label: 'Gemini 2.0 Flash', provider: 'google', description: 'Efficient' },
-  { id: 'google:gemini-3-pro-preview', label: 'Gemini 3 Pro (preview)', provider: 'google', description: 'Preview' },
+  { id: 'google:gemini-3.1-pro-preview', label: 'Gemini 3.1 Pro', provider: 'google', description: 'Latest Gemini 3.1 pro preview' },
+  { id: 'google:gemini-3-pro-preview', label: 'Gemini 3 Pro', provider: 'google', description: 'Gemini 3 generation' },
+  { id: 'google:gemini-3.1-flash-lite-preview', label: 'Gemini 3.1 Flash Lite', provider: 'google', description: 'Lightweight Gemini 3.1' },
+  { id: 'google:gemini-2.5-pro', label: 'Gemini 2.5 Pro', provider: 'google', description: 'Stable pro fallback' },
+  { id: 'google:gemini-2.5-flash', label: 'Gemini 2.5 Flash', provider: 'google', description: 'Fast fallback' },
 ];
 
 const catalogById = new Map(MODEL_CATALOG.map((m) => [m.id, m]));

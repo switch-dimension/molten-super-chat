@@ -1,4 +1,5 @@
 import { type UIMessage } from 'ai';
+import { formatAiErrorMessage } from '@/lib/ai/error-message';
 import { streamChatResponse } from '@/lib/ai/chat';
 import { ensureChat, appendChatMessage, getChatWithMessages } from '@/lib/db/chats';
 
@@ -23,36 +24,40 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const body = await req.json();
-  const { id: chatId, messages = [], trigger, messageId } = body as {
-    id?: string;
-    messages?: UIMessage[];
-    trigger?: string;
-    messageId?: string;
-  };
-  const selectedModel = body.selectedModel as string | undefined;
+  try {
+    const body = await req.json();
+    const { id: chatId, messages = [], trigger, messageId } = body as {
+      id?: string;
+      messages?: UIMessage[];
+      trigger?: string;
+      messageId?: string;
+    };
+    const selectedModel = body.selectedModel as string | undefined;
 
-  if (!chatId || !Array.isArray(messages) || messages.length === 0) {
-    return Response.json({ error: 'Missing id or messages' }, { status: 400 });
+    if (!chatId || !Array.isArray(messages) || messages.length === 0) {
+      return Response.json({ error: 'Missing id or messages' }, { status: 400 });
+    }
+
+    const modelId = selectedModel ?? 'openai:gpt-4o';
+
+    await ensureChat(chatId, 'chat');
+
+    const lastMessage = messages[messages.length - 1];
+    if (lastMessage?.role === 'user') {
+      const parts = 'parts' in lastMessage ? lastMessage.parts : [{ type: 'text' as const, text: String(lastMessage) }];
+      await appendChatMessage(chatId, 'user', parts);
+    }
+
+    const result = await streamChatResponse({
+      messages,
+      modelId,
+      onFinish: async ({ text }) => {
+        await appendChatMessage(chatId, 'assistant', [{ type: 'text', text }]);
+      },
+    });
+
+    return result.toUIMessageStreamResponse();
+  } catch (error) {
+    return Response.json({ error: formatAiErrorMessage(error) }, { status: 500 });
   }
-
-  const modelId = selectedModel ?? 'openai:gpt-4o';
-
-  await ensureChat(chatId, 'chat');
-
-  const lastMessage = messages[messages.length - 1];
-  if (lastMessage?.role === 'user') {
-    const parts = 'parts' in lastMessage ? lastMessage.parts : [{ type: 'text' as const, text: String(lastMessage) }];
-    await appendChatMessage(chatId, 'user', parts);
-  }
-
-  const result = await streamChatResponse({
-    messages,
-    modelId,
-    onFinish: async ({ text }) => {
-      await appendChatMessage(chatId, 'assistant', [{ type: 'text', text }]);
-    },
-  });
-
-  return result.toUIMessageStreamResponse();
 }

@@ -2,6 +2,7 @@
 
 import { useChat } from '@ai-sdk/react';
 import { useCallback, useMemo, useState } from 'react';
+import { formatAiErrorMessage } from '@/lib/ai/error-message';
 import { ModelPicker } from './model-picker';
 import { getDefaultModelId } from '@/lib/ai/model-catalog';
 
@@ -91,7 +92,8 @@ export function ChatShell({ chatId, initialMessages = [] }: ChatShellProps) {
           ))}
           {error && (
             <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200">
-              {error.message}
+              <div className="font-medium">Chat request failed</div>
+              <div className="mt-1">{formatAiErrorMessage(error)}</div>
             </div>
           )}
         </div>

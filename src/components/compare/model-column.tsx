@@ -43,7 +43,10 @@ export function ModelColumn({
       </div>
       <div className="min-h-[120px] flex-1 p-4">
         {error && (
-          <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+          <div className="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
+            <div className="font-medium">Model error</div>
+            <p className="mt-1">{error}</p>
+          </div>
         )}
         <p className="whitespace-pre-wrap text-sm text-zinc-900 dark:text-zinc-100">
           {output || (isStreaming ? '…' : '')}
