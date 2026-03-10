@@ -5,17 +5,35 @@ import { useCallback, useMemo, useState } from 'react';
 import { formatAiErrorMessage } from '@/lib/ai/error-message';
 import { ModelPicker } from './model-picker';
 import { getDefaultModelId } from '@/lib/ai/model-catalog';
+import { MemoizedMarkdown } from '@/components/ui/memoized-markdown';
 
 type ChatShellProps = {
   chatId: string;
   initialMessages?: Array<{ id: string; role: string; parts: Array<{ type: string; text?: string }> }>;
 };
 
-function MessageParts({ parts }: { parts: Array<{ type: string; text?: string }> }) {
+function MessageParts({
+  parts,
+  messageId,
+  renderMarkdown,
+}: {
+  parts: Array<{ type: string; text?: string }>;
+  messageId: string;
+  renderMarkdown: boolean;
+}) {
   return (
     <>
       {parts.map((part, i) => {
-        if (part.type === 'text' && part.text) {
+        if (part.type === 'text' && part.text !== undefined) {
+          if (renderMarkdown) {
+            return (
+              <MemoizedMarkdown
+                key={`${messageId}-${i}`}
+                id={`${messageId}-${i}`}
+                content={part.text}
+              />
+            );
+          }
           return (
             <span key={i} className="whitespace-pre-wrap">
               {part.text}
@@ -86,7 +104,11 @@ export function ChatShell({ chatId, initialMessages = [] }: ChatShellProps) {
                 {message.role === 'user' ? 'You' : 'Assistant'}
               </span>
               <div className="mt-1 text-zinc-900 dark:text-zinc-100">
-                <MessageParts parts={message.parts as Array<{ type: string; text?: string }>} />
+                <MessageParts
+                  parts={message.parts as Array<{ type: string; text?: string }>}
+                  messageId={message.id}
+                  renderMarkdown={message.role === 'assistant'}
+                />
               </div>
             </div>
           ))}

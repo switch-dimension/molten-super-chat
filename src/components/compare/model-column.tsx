@@ -1,6 +1,7 @@
 'use client';
 
 import { getModelById } from '@/lib/ai/model-catalog';
+import { MemoizedMarkdown } from '@/components/ui/memoized-markdown';
 
 type ModelColumnProps = {
   modelKey: string;
@@ -48,9 +49,13 @@ export function ModelColumn({
             <p className="mt-1">{error}</p>
           </div>
         )}
-        <p className="whitespace-pre-wrap text-sm text-zinc-900 dark:text-zinc-100">
-          {output || (isStreaming ? '…' : '')}
-        </p>
+        <div className="text-sm text-zinc-900 dark:text-zinc-100">
+          {output ? (
+            <MemoizedMarkdown id={modelKey} content={output} />
+          ) : isStreaming ? (
+            <span>…</span>
+          ) : null}
+        </div>
         {onContinue && branchId && output && !isStreaming && (
           <div className="mt-2 border-t border-zinc-200 pt-2 dark:border-zinc-600">
             <ContinueForm branchId={branchId} onContinue={onContinue} />
