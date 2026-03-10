@@ -1,5 +1,26 @@
 import { db } from '@/lib/db';
+import { listChats } from '@/lib/db/chats';
 import { chats } from '@/lib/db/schema';
+
+/**
+ * GET: list recent chat threads for sidebar.
+ * Returns: { chats: { id, mode, title, updatedAt }[] }
+ */
+export async function GET() {
+  try {
+    const rows = await listChats(50);
+    const chatsList = rows.map((c) => ({
+      id: c.id,
+      mode: c.mode as 'chat' | 'compare',
+      title: c.title,
+      updatedAt: c.updatedAt.toISOString(),
+    }));
+    return Response.json({ chats: chatsList });
+  } catch (e) {
+    console.error(e);
+    return Response.json({ chats: [] });
+  }
+}
 
 /**
  * POST: create a new chat. Used for "Promote to chat" from compare.
