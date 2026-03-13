@@ -3,7 +3,6 @@
 import { getModelById } from '@/lib/ai/model-catalog';
 import { MemoizedMarkdown } from '@/components/ui/memoized-markdown';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { ArrowUp } from 'lucide-react';
 
 type ModelColumnProps = {
@@ -13,17 +12,14 @@ type ModelColumnProps = {
   isStreaming?: boolean;
   error?: string;
   onPromote?: () => void;
-  onContinue?: (branchId: string, prompt: string) => void;
 };
 
 export function ModelColumn({
   modelKey,
-  branchId,
   output,
   isStreaming,
   error,
   onPromote,
-  onContinue,
 }: ModelColumnProps) {
   const catalog = getModelById(modelKey);
 
@@ -56,43 +52,7 @@ export function ModelColumn({
             <span>…</span>
           ) : null}
         </div>
-        {onContinue && branchId && output && !isStreaming && (
-          <div className="mt-2 border-t border-border pt-2">
-            <ContinueForm branchId={branchId} onContinue={onContinue} />
-          </div>
-        )}
       </div>
     </div>
-  );
-}
-
-function ContinueForm({
-  branchId,
-  onContinue,
-}: {
-  branchId: string;
-  onContinue: (branchId: string, prompt: string) => void;
-}) {
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const input = e.currentTarget.querySelector<HTMLInputElement>('input[name="continue-prompt"]');
-    const text = input?.value?.trim();
-    if (text && input) {
-      onContinue(branchId, text);
-      input.value = '';
-    }
-  };
-  return (
-    <form onSubmit={handleSubmit} className="flex gap-2">
-      <Input
-        name="continue-prompt"
-        type="text"
-        placeholder="Continue this branch..."
-        className="flex-1 h-7 text-sm"
-      />
-      <Button type="submit" size="sm">
-        Send
-      </Button>
-    </form>
   );
 }

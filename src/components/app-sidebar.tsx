@@ -4,8 +4,10 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { UserButton } from '@clerk/nextjs';
-import { MessageSquare, GitCompare, LayoutList } from 'lucide-react';
+import { MessageSquare, GitCompare, LayoutList, PanelLeftClose } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useSidebar } from '@/components/sidebar-context';
+import { Button } from '@/components/ui/button';
 
 type ChatThread = {
   id: string;
@@ -16,6 +18,7 @@ type ChatThread = {
 
 export function AppSidebar() {
   const pathname = usePathname();
+  const { toggle } = useSidebar();
   const [threads, setThreads] = useState<ChatThread[]>([]);
 
   useEffect(() => {
@@ -44,14 +47,25 @@ export function AppSidebar() {
     );
 
   return (
-    <aside className="flex w-56 shrink-0 flex-col border-r border-sidebar-border bg-sidebar">
-      <div className="border-b border-sidebar-border p-2">
+    <aside className="flex w-56 shrink-0 flex-col bg-sidebar">
+      <div className="flex items-center justify-between gap-1 border-b border-sidebar-border p-2">
         <Link
           href="/app"
-          className={linkClass(isAppHome)}
+          className={cn(linkClass(isAppHome), 'min-w-0 flex-1')}
         >
           Molten Super Chat
         </Link>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={toggle}
+          className="size-7 shrink-0"
+          aria-label="Close sidebar"
+          title="Close sidebar (Ctrl+B)"
+        >
+          <PanelLeftClose className="size-4" />
+        </Button>
       </div>
       <div className="flex flex-col gap-1 p-2">
         <Link href="/app/chat/new" className={linkClass(isNewChat)}>
