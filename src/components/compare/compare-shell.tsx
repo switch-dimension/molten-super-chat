@@ -2,7 +2,7 @@
 
 import { useCallback, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { GitCompare, Plus, X } from 'lucide-react';
+import { GitCompare, Plus, Search, X } from 'lucide-react';
 import { formatAiErrorMessage, getApiErrorMessage } from '@/lib/ai/error-message';
 import { ModelColumn } from './model-column';
 import { MODEL_CATALOG, getDefaultModelId, getModelById } from '@/lib/ai/model-catalog';
@@ -34,6 +34,7 @@ export function CompareShell({ chatId }: CompareShellProps) {
   const [branchIds, setBranchIds] = useState<Record<string, string>>({});
   const [continueStreaming, setContinueStreaming] = useState<Record<string, string>>({});
   const [globalError, setGlobalError] = useState<string | null>(null);
+  const [modelSearch, setModelSearch] = useState('');
 
   const fetchBranches = useCallback(async () => {
     try {
@@ -279,7 +280,7 @@ export function CompareShell({ chatId }: CompareShellProps) {
                     </span>
                   );
                 })}
-                <Popover>
+                <Popover onOpenChange={(open) => { if (open) setModelSearch(''); }}>
                   <PopoverTrigger
                     className={cn(
                       'inline-flex h-7 shrink-0 items-center justify-center gap-1 rounded-lg border border-input bg-transparent px-2.5 text-sm',
@@ -292,8 +293,26 @@ export function CompareShell({ chatId }: CompareShellProps) {
                     Add model
                   </PopoverTrigger>
                   <PopoverContent align="start" className="w-64 p-0">
+                    <div className="border-b border-border px-3 py-2">
+                      <div className="flex items-center gap-2">
+                        <Search className="size-4 text-muted-foreground" />
+                        <input
+                          type="text"
+                          value={modelSearch}
+                          onChange={(e) => setModelSearch(e.target.value)}
+                          placeholder="Search models..."
+                          className="h-6 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                          autoFocus
+                        />
+                      </div>
+                    </div>
                     <div className="max-h-60 overflow-y-auto py-1">
-                      {MODEL_CATALOG.map((m) => (
+                      {MODEL_CATALOG
+                        .filter((m) =>
+                          m.label.toLowerCase().includes(modelSearch.toLowerCase()) ||
+                          m.provider.toLowerCase().includes(modelSearch.toLowerCase())
+                        )
+                        .map((m) => (
                         <label
                           key={m.id}
                           className={cn(

@@ -26,7 +26,7 @@ export default async function ChatPage({ params }: PageProps) {
 
   return (
     <div className="flex h-screen flex-col">
-      <ChatShell chatId={chatId} initialMessages={initialMessages} />
+      <ChatShell key={chatId} chatId={chatId} initialMessages={initialMessages} />
     </div>
   );
 }
