@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState, useEffect } from 'react';
+import { useCallback, useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { GitCompare, Plus, Search, X } from 'lucide-react';
 import { formatAiErrorMessage, getApiErrorMessage } from '@/lib/ai/error-message';
@@ -35,17 +35,58 @@ export function CompareShell({ chatId }: CompareShellProps) {
   const [continueStreaming, setContinueStreaming] = useState<Record<string, string>>({});
   const [globalError, setGlobalError] = useState<string | null>(null);
   const [modelSearch, setModelSearch] = useState('');
+  const restoredRef = useRef(false);
 
   const fetchBranches = useCallback(async () => {
     try {
       const res = await fetch(`/api/compare?chatId=${encodeURIComponent(chatId)}`);
       if (!res.ok) return;
       const data = await res.json();
-      const map: Record<string, string> = {};
-      for (const b of data.branches ?? []) {
-        map[b.modelKey] = b.id;
+      const branches: Array<{
+        id: string;
+        modelKey: string;
+        label: string;
+        messages: Array<{ role: string; parts: Array<{ type: string; text?: string }> }>;
+      }> = data.branches ?? [];
+      if (branches.length === 0) return;
+
+      const idMap: Record<string, string> = {};
+      const restoredOutputs: Record<string, { text: string }> = {};
+      const restoredModels: string[] = [];
+      let restoredPrompt = '';
+
+      for (const b of branches) {
+        idMap[b.modelKey] = b.id;
+        restoredModels.push(b.modelKey);
+
+        const assistantParts = b.messages
+          .filter((m) => m.role === 'assistant')
+          .flatMap((m) => m.parts)
+          .filter((p) => p.type === 'text' && p.text)
+          .map((p) => p.text!);
+        if (assistantParts.length > 0) {
+          restoredOutputs[b.modelKey] = { text: assistantParts.join('\n\n---\n\n') };
+        }
+
+        if (!restoredPrompt) {
+          const userParts = b.messages
+            .filter((m) => m.role === 'user')
+            .flatMap((m) => m.parts)
+            .filter((p) => p.type === 'text' && p.text);
+          if (userParts.length > 0) {
+            restoredPrompt = userParts.map((p) => p.text!).join('\n');
+          }
+        }
       }
-      setBranchIds((prev) => ({ ...prev, ...map }));
+
+      setBranchIds((prev) => ({ ...prev, ...idMap }));
+
+      if (!restoredRef.current) {
+        restoredRef.current = true;
+        if (restoredModels.length > 0) setSelectedIds(restoredModels);
+        if (Object.keys(restoredOutputs).length > 0) setOutputs(restoredOutputs);
+        if (restoredPrompt) setPrompt((prev) => (prev === '' ? restoredPrompt : prev));
+      }
     } catch {
       // ignore
     }
