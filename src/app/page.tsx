@@ -1,26 +1,32 @@
 import Link from 'next/link';
+import { LogIn, UserPlus } from 'lucide-react';
+
+const linkBase =
+  'inline-flex shrink-0 items-center justify-center gap-2 rounded-lg text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 h-9 px-4';
 
 export default function LandingPage() {
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-zinc-50 px-4 dark:bg-zinc-950">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4">
       <main className="w-full max-w-lg space-y-8 text-center">
-        <h1 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
+        <h1 className="text-3xl font-bold tracking-tight text-foreground">
           Molten Super Chat
         </h1>
-        <p className="text-zinc-600 dark:text-zinc-400">
+        <p className="text-muted-foreground">
           Chat with any model. Compare answers from multiple AI models side by side.
         </p>
         <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
           <Link
             href="/sign-in"
-            className="rounded-lg border border-zinc-300 bg-white px-6 py-3 text-sm font-medium text-zinc-900 transition hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700"
+            className={`${linkBase} border border-border bg-background hover:bg-muted hover:text-foreground`}
           >
+            <LogIn className="size-4" />
             Sign in
           </Link>
           <Link
             href="/sign-up"
-            className="rounded-lg bg-zinc-900 px-6 py-3 text-sm font-medium text-white transition hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+            className={`${linkBase} bg-primary text-primary-foreground hover:opacity-90`}
           >
+            <UserPlus className="size-4" />
             Sign up
           </Link>
         </div>

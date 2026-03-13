@@ -2,9 +2,18 @@
 
 import { useCallback, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { GitCompare, Plus, X } from 'lucide-react';
 import { formatAiErrorMessage, getApiErrorMessage } from '@/lib/ai/error-message';
 import { ModelColumn } from './model-column';
-import { MODEL_CATALOG, getDefaultModelId } from '@/lib/ai/model-catalog';
+import { MODEL_CATALOG, getDefaultModelId, getModelById } from '@/lib/ai/model-catalog';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { cn } from '@/lib/utils';
 
 const MAX_SELECTED = 4;
 
@@ -211,13 +220,16 @@ export function CompareShell({ chatId }: CompareShellProps) {
   );
 
   return (
-    <div className="flex h-full flex-col bg-zinc-50 dark:bg-zinc-950">
-      <header className="border-b border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="mx-auto max-w-5xl">
-          <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Compare models</h1>
-          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-            Select 2–{MAX_SELECTED} models and send one prompt to see responses side by side.
-          </p>
+    <div className="flex h-full flex-col bg-background">
+      <header className="border-b border-border bg-card px-4 py-3">
+        <div className="mx-auto max-w-5xl flex items-center gap-2">
+          <GitCompare className="size-5 text-muted-foreground" />
+          <div>
+            <h1 className="text-lg font-semibold text-foreground">Compare models</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Select 2–{MAX_SELECTED} models and send one prompt to see responses side by side.
+            </p>
+          </div>
         </div>
       </header>
 
@@ -225,7 +237,7 @@ export function CompareShell({ chatId }: CompareShellProps) {
         <div className="overflow-y-auto">
           <form onSubmit={handleSubmit} className="mx-auto max-w-5xl space-y-4">
             <div>
-              <label className="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              <label className="mb-1 block text-sm font-medium text-foreground">
                 Prompt
               </label>
               <textarea
@@ -234,48 +246,111 @@ export function CompareShell({ chatId }: CompareShellProps) {
                 placeholder="Enter a prompt to send to all selected models..."
                 rows={3}
                 disabled={streaming}
-                className="w-full rounded-lg border border-zinc-300 bg-white px-4 py-3 text-zinc-900 placeholder:text-zinc-500 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-400"
+                className={cn(
+                  'w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm',
+                  'placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50',
+                  'disabled:opacity-50 dark:bg-input/30'
+                )}
               />
             </div>
 
             <div>
-              <span className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              <span className="mb-2 block text-sm font-medium text-foreground">
                 Models ({selectedIds.length}/{MAX_SELECTED})
               </span>
-              <div className="flex flex-wrap gap-2">
-                {MODEL_CATALOG.map((m) => (
-                  <label
-                    key={m.id}
-                    className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm ${
-                      selectedIds.includes(m.id)
-                        ? 'border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900'
-                        : 'border-zinc-300 bg-white text-zinc-700 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300'
-                    } ${streaming ? 'opacity-60' : ''}`}
+              <div className="flex flex-wrap items-center gap-2">
+                {selectedIds.map((id) => {
+                  const model = getModelById(id);
+                  return (
+                    <span
+                      key={id}
+                      className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1.5 text-sm font-medium text-foreground ring-1 ring-primary/20"
+                    >
+                      {model?.label ?? id}
+                      <button
+                        type="button"
+                        onClick={() => toggleModel(id)}
+                        disabled={streaming}
+                        className="rounded-full p-0.5 hover:bg-primary/20 disabled:opacity-50"
+                        aria-label={`Remove ${model?.label ?? id} from comparison`}
+                      >
+                        <X className="size-3.5" />
+                      </button>
+                    </span>
+                  );
+                })}
+                <Popover>
+                  <PopoverTrigger
+                    className={cn(
+                      'inline-flex h-7 shrink-0 items-center justify-center gap-1 rounded-lg border border-input bg-transparent px-2.5 text-sm',
+                      'hover:bg-muted disabled:pointer-events-none disabled:opacity-50',
+                      'dark:bg-input/30 dark:hover:bg-input/50'
+                    )}
+                    disabled={streaming || selectedIds.length >= MAX_SELECTED}
                   >
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.includes(m.id)}
-                      onChange={() => toggleModel(m.id)}
-                      disabled={streaming || (!selectedIds.includes(m.id) && selectedIds.length >= MAX_SELECTED)}
-                      className="sr-only"
-                    />
-                    {m.label}
-                  </label>
-                ))}
+                    <Plus className="size-4" />
+                    Add model
+                  </PopoverTrigger>
+                  <PopoverContent align="start" className="w-64 p-0">
+                    <div className="max-h-60 overflow-y-auto py-1">
+                      {MODEL_CATALOG.map((m) => (
+                        <label
+                          key={m.id}
+                          className={cn(
+                            'flex cursor-pointer items-center gap-2 px-3 py-2 text-sm transition hover:bg-muted',
+                            streaming && 'pointer-events-none opacity-60'
+                          )}
+                        >
+                          <Checkbox
+                            checked={selectedIds.includes(m.id)}
+                            onCheckedChange={() => toggleModel(m.id)}
+                            disabled={
+                              streaming ||
+                              (!selectedIds.includes(m.id) &&
+                                selectedIds.length >= MAX_SELECTED)
+                            }
+                            aria-label={m.label}
+                          />
+                          <span className="truncate">{m.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </PopoverContent>
+                </Popover>
               </div>
             </div>
 
-            <button
-              type="submit"
-              disabled={streaming || !prompt.trim() || selectedIds.length === 0}
-              className="rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
-            >
-              {streaming ? 'Streaming…' : 'Compare'}
-            </button>
+            <div className="flex flex-col gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                <span className="text-sm font-medium text-muted-foreground">
+                  {selectedIds.length > 0
+                    ? 'Comparing:'
+                    : 'Select models above to compare'}
+                </span>
+                {selectedIds.length > 0 && (
+                  <span className="text-sm text-muted-foreground">
+                    {selectedIds.length} of {MAX_SELECTED} selected
+                  </span>
+                )}
+              </div>
+              <Button
+                type="submit"
+                disabled={
+                  streaming ||
+                  !prompt.trim() ||
+                  selectedIds.length === 0 ||
+                  selectedIds.length < 2
+                }
+                className="shrink-0"
+              >
+                <GitCompare className="size-4" />
+                {streaming ? 'Streaming…' : 'Compare'}
+              </Button>
+            </div>
           </form>
 
           {globalError && (
-            <div className="mx-auto mt-6 max-w-5xl rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200">
+            <div className="mx-auto mt-6 max-w-5xl rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
               <div className="font-medium">Compare request failed</div>
               <div className="mt-1">{globalError}</div>
             </div>
