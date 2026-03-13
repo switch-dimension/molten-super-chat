@@ -7,7 +7,7 @@ type PageProps = { params: Promise<{ chatId: string }> };
 export default async function ChatPage({ params }: PageProps) {
   const { chatId } = await params;
   if (chatId === 'new') {
-    redirect(`/chat/${crypto.randomUUID()}`);
+    redirect(`/app/chat/${crypto.randomUUID()}`);
   }
 
   let initialMessages: Array<{ id: string; role: string; parts: Array<{ type: string; text?: string }> }> = [];

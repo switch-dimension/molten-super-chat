@@ -6,7 +6,7 @@ type PageProps = { params: Promise<{ chatId: string }> };
 export default async function ComparePage({ params }: PageProps) {
   const { chatId } = await params;
   if (chatId === 'new') {
-    redirect(`/compare/${crypto.randomUUID()}`);
+    redirect(`/app/compare/${crypto.randomUUID()}`);
   }
 
   return (

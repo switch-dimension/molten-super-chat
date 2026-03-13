@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { UserButton } from '@clerk/nextjs';
 
 type ChatThread = {
   id: string;
@@ -22,23 +23,23 @@ export function AppSidebar() {
       .catch(() => setThreads([]));
   }, [pathname]); // refetch when navigating so new chats appear
 
-  const chatId = pathname.startsWith('/chat/')
-    ? pathname.slice('/chat/'.length)
-    : pathname.startsWith('/compare/')
-      ? pathname.slice('/compare/'.length)
+  const chatId = pathname.startsWith('/app/chat/')
+    ? pathname.slice('/app/chat/'.length)
+    : pathname.startsWith('/app/compare/')
+      ? pathname.slice('/app/compare/'.length)
       : null;
-  const isNewChat = pathname === '/chat/new';
-  const isNewCompare = pathname === '/compare/new';
+  const isNewChat = pathname === '/app/chat/new';
+  const isNewCompare = pathname === '/app/compare/new';
 
-  const isHome = pathname === '/';
+  const isAppHome = pathname === '/app';
 
   return (
     <aside className="flex w-56 shrink-0 flex-col border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
       <div className="border-b border-zinc-200 p-2 dark:border-zinc-800">
         <Link
-          href="/"
+          href="/app"
           className={`block rounded-lg px-3 py-2 text-sm font-semibold transition ${
-            isHome
+            isAppHome
               ? 'bg-zinc-200 text-zinc-900 dark:bg-zinc-700 dark:text-zinc-100'
               : 'text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800'
           }`}
@@ -48,7 +49,7 @@ export function AppSidebar() {
       </div>
       <div className="flex flex-col gap-1 p-2">
         <Link
-          href="/chat/new"
+          href="/app/chat/new"
           className={`rounded-lg px-3 py-2 text-sm font-medium transition ${
             isNewChat
               ? 'bg-zinc-200 text-zinc-900 dark:bg-zinc-700 dark:text-zinc-100'
@@ -58,7 +59,7 @@ export function AppSidebar() {
           New chat
         </Link>
         <Link
-          href="/compare/new"
+          href="/app/compare/new"
           className={`rounded-lg px-3 py-2 text-sm font-medium transition ${
             isNewCompare
               ? 'bg-zinc-200 text-zinc-900 dark:bg-zinc-700 dark:text-zinc-100'
@@ -70,11 +71,11 @@ export function AppSidebar() {
       </div>
       <nav className="flex-1 overflow-y-auto px-2 pb-4">
         <div className="mt-2 text-xs font-medium uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
-          Threads
+          Work
         </div>
         <ul className="mt-1 space-y-0.5">
           {threads.map((t) => {
-            const href = t.mode === 'chat' ? `/chat/${t.id}` : `/compare/${t.id}`;
+            const href = t.mode === 'chat' ? `/app/chat/${t.id}` : `/app/compare/${t.id}`;
             const isActive = chatId === t.id;
             const label = t.title || (t.mode === 'chat' ? 'Chat' : 'Compare');
             return (
@@ -103,6 +104,17 @@ export function AppSidebar() {
           )}
         </ul>
       </nav>
+      <div className="border-t border-zinc-200 p-2 dark:border-zinc-800">
+        <div className="flex items-center justify-center">
+          <UserButton
+            appearance={{
+              elements: {
+                avatarBox: 'w-8 h-8',
+              },
+            }}
+          />
+        </div>
+      </div>
     </aside>
   );
 }

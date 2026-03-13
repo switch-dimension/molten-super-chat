@@ -158,7 +158,7 @@ export function CompareShell({ chatId }: CompareShellProps) {
           body: JSON.stringify({ mode: 'chat', promotedText: text }),
         });
         const data = await res.json();
-        if (data.chatId) router.push(`/chat/${data.chatId}`);
+        if (data.chatId) router.push(`/app/chat/${data.chatId}`);
       } catch {
         navigator.clipboard?.writeText(text);
       }
@@ -221,82 +221,86 @@ export function CompareShell({ chatId }: CompareShellProps) {
         </div>
       </header>
 
-      <div className="flex-1 overflow-y-auto p-4">
-        <form onSubmit={handleSubmit} className="mx-auto max-w-5xl space-y-4">
-          <div>
-            <label className="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-              Prompt
-            </label>
-            <textarea
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              placeholder="Enter a prompt to send to all selected models..."
-              rows={3}
-              disabled={streaming}
-              className="w-full rounded-lg border border-zinc-300 bg-white px-4 py-3 text-zinc-900 placeholder:text-zinc-500 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-400"
-            />
-          </div>
-
-          <div>
-            <span className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-              Models ({selectedIds.length}/{MAX_SELECTED})
-            </span>
-            <div className="flex flex-wrap gap-2">
-              {MODEL_CATALOG.map((m) => (
-                <label
-                  key={m.id}
-                  className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm ${
-                    selectedIds.includes(m.id)
-                      ? 'border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900'
-                      : 'border-zinc-300 bg-white text-zinc-700 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300'
-                  } ${streaming ? 'opacity-60' : ''}`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedIds.includes(m.id)}
-                    onChange={() => toggleModel(m.id)}
-                    disabled={streaming || (!selectedIds.includes(m.id) && selectedIds.length >= MAX_SELECTED)}
-                    className="sr-only"
-                  />
-                  {m.label}
-                </label>
-              ))}
+      <div className="flex flex-1 flex-col overflow-hidden p-4">
+        <div className="overflow-y-auto">
+          <form onSubmit={handleSubmit} className="mx-auto max-w-5xl space-y-4">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                Prompt
+              </label>
+              <textarea
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                placeholder="Enter a prompt to send to all selected models..."
+                rows={3}
+                disabled={streaming}
+                className="w-full rounded-lg border border-zinc-300 bg-white px-4 py-3 text-zinc-900 placeholder:text-zinc-500 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-400"
+              />
             </div>
-          </div>
 
-          <button
-            type="submit"
-            disabled={streaming || !prompt.trim() || selectedIds.length === 0}
-            className="rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
-          >
-            {streaming ? 'Streaming…' : 'Compare'}
-          </button>
-        </form>
+            <div>
+              <span className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                Models ({selectedIds.length}/{MAX_SELECTED})
+              </span>
+              <div className="flex flex-wrap gap-2">
+                {MODEL_CATALOG.map((m) => (
+                  <label
+                    key={m.id}
+                    className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm ${
+                      selectedIds.includes(m.id)
+                        ? 'border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900'
+                        : 'border-zinc-300 bg-white text-zinc-700 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300'
+                    } ${streaming ? 'opacity-60' : ''}`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.includes(m.id)}
+                      onChange={() => toggleModel(m.id)}
+                      disabled={streaming || (!selectedIds.includes(m.id) && selectedIds.length >= MAX_SELECTED)}
+                      className="sr-only"
+                    />
+                    {m.label}
+                  </label>
+                ))}
+              </div>
+            </div>
 
-        {globalError && (
-          <div className="mx-auto mt-6 max-w-5xl rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200">
-            <div className="font-medium">Compare request failed</div>
-            <div className="mt-1">{globalError}</div>
-          </div>
-        )}
+            <button
+              type="submit"
+              disabled={streaming || !prompt.trim() || selectedIds.length === 0}
+              className="rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
+            >
+              {streaming ? 'Streaming…' : 'Compare'}
+            </button>
+          </form>
+
+          {globalError && (
+            <div className="mx-auto mt-6 max-w-5xl rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200">
+              <div className="font-medium">Compare request failed</div>
+              <div className="mt-1">{globalError}</div>
+            </div>
+          )}
+        </div>
 
         {selectedIds.length > 0 && (Object.keys(outputs).length > 0 || streaming) && (
-          <div className="mx-auto mt-8 grid max-w-5xl gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {selectedIds.map((modelKey) => (
-              <ModelColumn
-                key={modelKey}
-                modelKey={modelKey}
-                branchId={branchIds[modelKey]}
-                output={
-                  (outputs[modelKey]?.text ?? '') +
-                  (continueStreaming[modelKey] ? '\n\n---\n\n' + continueStreaming[modelKey] : '')
-                }
-                isStreaming={streamingModels.has(modelKey) || !!continueStreaming[modelKey]}
-                error={outputs[modelKey]?.error}
-                onPromote={() => handlePromote(modelKey)}
-                onContinue={handleContinue}
-              />
-            ))}
+          <div className="mx-auto mt-8 w-full max-w-5xl flex-1 overflow-hidden">
+            <div className="grid h-full gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {selectedIds.map((modelKey) => (
+                <ModelColumn
+                  key={modelKey}
+                  modelKey={modelKey}
+                  branchId={branchIds[modelKey]}
+                  output={
+                    (outputs[modelKey]?.text ?? '') +
+                    (continueStreaming[modelKey] ? '\n\n---\n\n' + continueStreaming[modelKey] : '')
+                  }
+                  isStreaming={streamingModels.has(modelKey) || !!continueStreaming[modelKey]}
+                  error={outputs[modelKey]?.error}
+                  onPromote={() => handlePromote(modelKey)}
+                  onContinue={handleContinue}
+                />
+              ))}
+            </div>
           </div>
         )}
       </div>
