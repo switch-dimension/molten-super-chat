@@ -1,6 +1,7 @@
 import { streamCompareResponse, clampCompareModels } from '@/lib/ai/compare';
 import { formatAiErrorMessage } from '@/lib/ai/error-message';
-import { ensureChat } from '@/lib/db/chats';
+import { generateChatTitle } from '@/lib/ai/generate-title';
+import { ensureChat, getChat, updateChatTitle } from '@/lib/db/chats';
 import { ensureCompareBranches, appendCompareMessage, getCompareChatWithBranches } from '@/lib/db/compare';
 
 export const maxDuration = 120;
@@ -44,6 +45,13 @@ export async function POST(req: Request) {
 
     const id = chatId ?? crypto.randomUUID();
     await ensureChat(id, 'compare').catch(() => {});
+
+    const chat = await getChat(id);
+    if (chat && chat.title === 'New chat') {
+      generateChatTitle(prompt)
+        .then((title) => updateChatTitle(id, title))
+        .catch(() => {});
+    }
 
     const ids = clampCompareModels(selectedModels);
     const branches = await ensureCompareBranches(id, ids).catch(() => []);
