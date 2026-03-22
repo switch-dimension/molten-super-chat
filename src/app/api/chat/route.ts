@@ -1,7 +1,9 @@
 import { type UIMessage } from 'ai';
 import { formatAiErrorMessage } from '@/lib/ai/error-message';
 import { streamChatResponse } from '@/lib/ai/chat';
-import { ensureChat, appendChatMessage, getChatWithMessages } from '@/lib/db/chats';
+import { getDefaultModelId } from '@/lib/ai/model-catalog';
+import { generateChatTitle } from '@/lib/ai/generate-title';
+import { ensureChat, appendChatMessage, getChatWithMessages, getChat, updateChatTitle } from '@/lib/db/chats';
 
 export const maxDuration = 60;
 
@@ -38,7 +40,7 @@ export async function POST(req: Request) {
       return Response.json({ error: 'Missing id or messages' }, { status: 400 });
     }
 
-    const modelId = selectedModel ?? 'openai:gpt-4o';
+    const modelId = selectedModel ?? getDefaultModelId();
 
     await ensureChat(chatId, 'chat');
 
@@ -46,6 +48,26 @@ export async function POST(req: Request) {
     if (lastMessage?.role === 'user') {
       const parts = 'parts' in lastMessage ? lastMessage.parts : [{ type: 'text' as const, text: String(lastMessage) }];
       await appendChatMessage(chatId, 'user', parts);
+    }
+
+    const userMessages = messages.filter((m) => m.role === 'user');
+    if (userMessages.length === 1) {
+      const chat = await getChat(chatId);
+      if (chat && chat.title === 'New chat') {
+        const firstText =
+          'parts' in userMessages[0]
+            ? userMessages[0].parts
+                .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
+                .map((p) => p.text)
+                .join(' ')
+            : String(userMessages[0]);
+
+        if (firstText) {
+          generateChatTitle(firstText)
+            .then((title) => updateChatTitle(chatId, title))
+            .catch(() => {});
+        }
+      }
     }
 
     const result = await streamChatResponse({

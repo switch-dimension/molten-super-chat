@@ -1,41 +1,136 @@
 'use client';
 
-import { useCallback, useState, useEffect } from 'react';
+import { useCallback, useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import { MessageSquare, Plus, Search, X, Send } from 'lucide-react';
 import { formatAiErrorMessage, getApiErrorMessage } from '@/lib/ai/error-message';
+import { ModelThreadModal } from './model-thread-modal';
 import { ModelColumn } from './model-column';
-import { MODEL_CATALOG, getDefaultModelId } from '@/lib/ai/model-catalog';
+import { buildThreadForModel } from '@/lib/compare/thread';
+import { MODEL_CATALOG, getDefaultCompareModelIds, getModelById } from '@/lib/ai/model-catalog';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { cn } from '@/lib/utils';
 
 const MAX_SELECTED = 4;
+
+type CompareRound = {
+  id: string;
+  prompt: string;
+  models: string[];
+  outputs: Record<string, { text: string; error?: string }>;
+  streaming: boolean;
+};
 
 type CompareShellProps = {
   chatId: string;
 };
 
+function buildContextualPrompt(userPrompt: string, previousRound: CompareRound): string {
+  const context = previousRound.models
+    .map((id) => {
+      const label = getModelById(id)?.label ?? id;
+      const text = previousRound.outputs[id]?.text ?? '(no response)';
+      return `[${label}]:\n${text}`;
+    })
+    .join('\n\n');
+  return `Here are the responses from the previous comparison:\n\n${context}\n\n---\n\nUser's follow-up: ${userPrompt}`;
+}
+
 export function CompareShell({ chatId }: CompareShellProps) {
   const router = useRouter();
-  const [prompt, setPrompt] = useState('');
-  const [selectedIds, setSelectedIds] = useState<string[]>([
-    getDefaultModelId(),
-    MODEL_CATALOG[1]?.id ?? getDefaultModelId(),
-  ]);
-  const [outputs, setOutputs] = useState<Record<string, { text: string; error?: string }>>({});
-  const [streaming, setStreaming] = useState(false);
-  const [streamingModels, setStreamingModels] = useState<Set<string>>(new Set());
+  const [rounds, setRounds] = useState<CompareRound[]>([]);
+  const [selectedIds, setSelectedIds] = useState<string[]>(getDefaultCompareModelIds);
+  const [inputText, setInputText] = useState('');
   const [branchIds, setBranchIds] = useState<Record<string, string>>({});
-  const [continueStreaming, setContinueStreaming] = useState<Record<string, string>>({});
   const [globalError, setGlobalError] = useState<string | null>(null);
+  const [modelSearch, setModelSearch] = useState('');
+  const [expandedModelKey, setExpandedModelKey] = useState<string | null>(null);
+  const restoredRef = useRef(false);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const fetchBranches = useCallback(async () => {
     try {
       const res = await fetch(`/api/compare?chatId=${encodeURIComponent(chatId)}`);
       if (!res.ok) return;
       const data = await res.json();
-      const map: Record<string, string> = {};
-      for (const b of data.branches ?? []) {
-        map[b.modelKey] = b.id;
+      const branches: Array<{
+        id: string;
+        modelKey: string;
+        label: string;
+        messages: Array<{ role: string; parts: Array<{ type: string; text?: string }> }>;
+      }> = data.branches ?? [];
+      if (branches.length === 0) return;
+
+      const idMap: Record<string, string> = {};
+      for (const b of branches) {
+        idMap[b.modelKey] = b.id;
       }
-      setBranchIds((prev) => ({ ...prev, ...map }));
+      setBranchIds((prev) => ({ ...prev, ...idMap }));
+
+      if (!restoredRef.current) {
+        restoredRef.current = true;
+        const restoredModels = branches.map((b) => b.modelKey);
+        if (restoredModels.length > 0) setSelectedIds(restoredModels);
+
+        const restoredRounds: CompareRound[] = [];
+        let maxPairs = 0;
+        const pairsByBranch = new Map<
+          string,
+          Array<{ userText: string; assistantText: string }>
+        >();
+        for (const b of branches) {
+          const pairs: Array<{ userText: string; assistantText: string }> = [];
+          const msgs = b.messages ?? [];
+          for (let i = 0; i + 1 < msgs.length; i += 2) {
+            const userMsg = msgs[i];
+            const assistantMsg = msgs[i + 1];
+            if (userMsg?.role !== 'user' || assistantMsg?.role !== 'assistant') continue;
+            const userParts = Array.isArray(userMsg.parts) ? userMsg.parts : [];
+            const assistantParts = Array.isArray(assistantMsg.parts) ? assistantMsg.parts : [];
+            const userText = userParts
+              .filter((p) => p.type === 'text' && p.text)
+              .map((p) => (p as { text: string }).text)
+              .join('\n');
+            const assistantText = assistantParts
+              .filter((p) => p.type === 'text' && p.text)
+              .map((p) => (p as { text: string }).text)
+              .join('\n\n---\n\n');
+            pairs.push({ userText, assistantText });
+          }
+          pairsByBranch.set(b.modelKey, pairs);
+          maxPairs = Math.max(maxPairs, pairs.length);
+        }
+        for (let r = 0; r < maxPairs; r++) {
+          let prompt = '';
+          const outputs: Record<string, { text: string }> = {};
+          const models: string[] = [];
+          for (const b of branches) {
+            const pairs = pairsByBranch.get(b.modelKey) ?? [];
+            const pair = pairs[r];
+            if (!pair) continue;
+            if (!prompt) prompt = pair.userText;
+            outputs[b.modelKey] = { text: pair.assistantText };
+            models.push(b.modelKey);
+          }
+          if (prompt || Object.keys(outputs).length > 0) {
+            restoredRounds.push({
+              id: crypto.randomUUID(),
+              prompt,
+              models,
+              outputs,
+              streaming: false,
+            });
+          }
+        }
+        if (restoredRounds.length > 0) setRounds(restoredRounds);
+      }
     } catch {
       // ignore
     }
@@ -45,32 +140,39 @@ export function CompareShell({ chatId }: CompareShellProps) {
     fetchBranches();
   }, [fetchBranches]);
 
+  useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }, [rounds]);
+
   const toggleModel = useCallback((modelId: string) => {
     setSelectedIds((prev) => {
-      if (prev.includes(modelId)) {
-        return prev.filter((id) => id !== modelId);
-      }
+      if (prev.includes(modelId)) return prev.filter((id) => id !== modelId);
       if (prev.length >= MAX_SELECTED) return prev;
       return [...prev, modelId];
     });
   }, []);
 
-  const handleSubmit = useCallback(
+  const isStreaming = rounds.some((r) => r.streaming);
+
+  const handleSubmitInitial = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
-      const text = prompt.trim();
-      if (!text || selectedIds.length === 0) return;
+      const text = inputText.trim();
+      if (!text || selectedIds.length < 1) return;
 
       setGlobalError(null);
-      setStreaming(true);
-      setStreamingModels(new Set(selectedIds));
-      setOutputs((prev) => {
-        const next = { ...prev };
-        selectedIds.forEach((id) => {
-          next[id] = { text: '' };
-        });
-        return next;
-      });
+      setInputText('');
+      const roundId = crypto.randomUUID();
+      const newRound: CompareRound = {
+        id: roundId,
+        prompt: text,
+        models: [...selectedIds],
+        outputs: Object.fromEntries(selectedIds.map((id) => [id, { text: '' }])),
+        streaming: true,
+      };
+      setRounds((prev) => [...prev, newRound]);
 
       try {
         const res = await fetch('/api/compare', {
@@ -82,9 +184,7 @@ export function CompareShell({ chatId }: CompareShellProps) {
             selectedModels: selectedIds,
           }),
         });
-        if (!res.ok) {
-          throw new Error(await getApiErrorMessage(res));
-        }
+        if (!res.ok) throw new Error(await getApiErrorMessage(res));
         if (!res.body) throw new Error('No body');
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
@@ -101,30 +201,44 @@ export function CompareShell({ chatId }: CompareShellProps) {
                 const data = JSON.parse(line.slice(6));
                 if (data.error) {
                   const formatted = formatAiErrorMessage(data.error);
-                  setOutputs((o) => ({ ...o, [data.modelKey]: { ...o[data.modelKey], error: formatted } }));
-                  setStreamingModels((s) => {
-                    const n = new Set(s);
-                    n.delete(data.modelKey);
-                    return n;
-                  });
+                  setRounds((prev) =>
+                    prev.map((r) =>
+                      r.id === roundId
+                        ? {
+                            ...r,
+                            outputs: {
+                              ...r.outputs,
+                              [data.modelKey]: { ...r.outputs[data.modelKey], error: formatted },
+                            },
+                          }
+                        : r
+                    )
+                  );
                   continue;
                 }
                 if (data.type === 'delta' && data.delta !== undefined) {
-                  setOutputs((o) => ({
-                    ...o,
-                    [data.modelKey]: { ...o[data.modelKey], text: (o[data.modelKey]?.text ?? '') + data.delta },
-                  }));
+                  setRounds((prev) =>
+                    prev.map((r) =>
+                      r.id === roundId
+                        ? {
+                            ...r,
+                            outputs: {
+                              ...r.outputs,
+                              [data.modelKey]: {
+                                ...r.outputs[data.modelKey],
+                                text: (r.outputs[data.modelKey]?.text ?? '') + data.delta,
+                              },
+                            },
+                          }
+                        : r
+                    )
+                  );
                 }
                 if (data.type === 'done') {
-                  setStreamingModels((s) => {
-                    const n = new Set(s);
-                    n.delete(data.modelKey);
-                    return n;
-                  });
                   fetchBranches();
                 }
               } catch {
-                // skip invalid JSON
+                // skip
               }
             }
           }
@@ -132,174 +246,325 @@ export function CompareShell({ chatId }: CompareShellProps) {
       } catch (err) {
         const message = formatAiErrorMessage(err);
         setGlobalError(message);
-        setOutputs((o) => {
-          const next = { ...o };
-          selectedIds.forEach((id) => {
-            next[id] = { ...next[id], error: message };
-          });
-          return next;
-        });
+        setRounds((prev) =>
+          prev.map((r) =>
+            r.id === roundId
+              ? {
+                  ...r,
+                  streaming: false,
+                  outputs: Object.fromEntries(
+                    r.models.map((id) => [
+                      id,
+                      { ...r.outputs[id], error: message, text: r.outputs[id]?.text ?? '' },
+                    ])
+                  ),
+                }
+              : r
+          )
+        );
       } finally {
-        setStreaming(false);
-        setStreamingModels(new Set());
+        setRounds((prev) =>
+          prev.map((r) => (r.id === roundId ? { ...r, streaming: false } : r))
+        );
       }
     },
-    [chatId, prompt, selectedIds, fetchBranches]
+    [chatId, inputText, selectedIds, fetchBranches]
   );
+
+  const handleSubmitFollowUp = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      const text = inputText.trim();
+      if (!text || selectedIds.length === 0 || rounds.length === 0) return;
+
+      const lastRound = rounds[rounds.length - 1];
+      const contextualPrompt = buildContextualPrompt(text, lastRound);
+
+      setGlobalError(null);
+      setInputText('');
+      const roundId = crypto.randomUUID();
+      const newRound: CompareRound = {
+        id: roundId,
+        prompt: text,
+        models: [...selectedIds],
+        outputs: Object.fromEntries(selectedIds.map((id) => [id, { text: '' }])),
+        streaming: true,
+      };
+      setRounds((prev) => [...prev, newRound]);
+
+      const runContinue = async (modelKey: string) => {
+        const branchId = branchIds[modelKey];
+        if (!branchId) return;
+        try {
+          const res = await fetch('/api/compare/continue', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ branchId, prompt: contextualPrompt }),
+          });
+          if (!res.ok) {
+            const errMsg = await getApiErrorMessage(res);
+            setRounds((prev) =>
+              prev.map((r) =>
+                r.id === roundId
+                  ? {
+                      ...r,
+                      outputs: {
+                        ...r.outputs,
+                        [modelKey]: { ...r.outputs[modelKey], error: errMsg },
+                      },
+                    }
+                  : r
+              )
+            );
+            return;
+          }
+          if (!res.body) return;
+          const reader = res.body.getReader();
+          const decoder = new TextDecoder();
+          let full = '';
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            full += decoder.decode(value, { stream: true });
+            const current = full;
+            setRounds((prev) =>
+              prev.map((r) =>
+                r.id === roundId
+                  ? {
+                      ...r,
+                      outputs: {
+                        ...r.outputs,
+                        [modelKey]: { ...r.outputs[modelKey], text: current },
+                      },
+                    }
+                  : r
+              )
+            );
+          }
+        } catch (err) {
+          const message = formatAiErrorMessage(err);
+          setRounds((prev) =>
+            prev.map((r) =>
+              r.id === roundId
+                ? {
+                    ...r,
+                    outputs: {
+                      ...r.outputs,
+                      [modelKey]: { ...r.outputs[modelKey], error: message },
+                    },
+                  }
+                : r
+            )
+          );
+        }
+      };
+
+      await Promise.all(selectedIds.map(runContinue));
+      setRounds((prev) =>
+        prev.map((r) => (r.id === roundId ? { ...r, streaming: false } : r))
+      );
+      fetchBranches();
+    },
+    [chatId, inputText, selectedIds, rounds, branchIds, fetchBranches]
+  );
+
+  const handleSubmit = rounds.length === 0 ? handleSubmitInitial : handleSubmitFollowUp;
 
   const handlePromote = useCallback(
-    async (modelKey: string) => {
-      const text = outputs[modelKey]?.text;
+    (modelKey: string, roundIndex: number) => {
+      const round = rounds[roundIndex];
+      const text = round?.outputs[modelKey]?.text;
       if (!text) return;
-      try {
-        const res = await fetch('/api/chats', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mode: 'chat', promotedText: text }),
-        });
-        const data = await res.json();
-        if (data.chatId) router.push(`/chat/${data.chatId}`);
-      } catch {
-        navigator.clipboard?.writeText(text);
-      }
+      (async () => {
+        try {
+          const res = await fetch('/api/chats', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mode: 'chat', promotedText: text }),
+          });
+          const data = await res.json();
+          if (data.chatId) router.push(`/app/chat/${data.chatId}`);
+        } catch {
+          navigator.clipboard?.writeText(text);
+        }
+      })();
     },
-    [outputs, router]
+    [rounds, router]
   );
 
-  const handleContinue = useCallback(
-    async (branchId: string, continuePrompt: string) => {
-      const modelKey = Object.entries(branchIds).find(([, id]) => id === branchId)?.[0];
-      if (!modelKey) return;
-      setGlobalError(null);
-      setOutputs((o) => ({ ...o, [modelKey]: { ...o[modelKey], error: undefined } }));
-      setContinueStreaming((prev) => ({ ...prev, [modelKey]: '' }));
-      try {
-        const res = await fetch('/api/compare/continue', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ branchId, prompt: continuePrompt }),
-        });
-        if (!res.ok) {
-          throw new Error(await getApiErrorMessage(res));
-        }
-        if (!res.body) throw new Error('No body');
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let full = '';
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          full += decoder.decode(value, { stream: true });
-          setContinueStreaming((prev) => ({ ...prev, [modelKey]: full }));
-        }
-        setOutputs((o) => ({
-          ...o,
-          [modelKey]: { text: (o[modelKey]?.text ?? '') + (o[modelKey]?.text ? '\n\n---\n\n' : '') + full },
-        }));
-      } catch (err) {
-        const message = formatAiErrorMessage(err);
-        setOutputs((o) => ({ ...o, [modelKey]: { ...o[modelKey], error: message } }));
-      } finally {
-        setContinueStreaming((prev) => {
-          const next = { ...prev };
-          delete next[modelKey];
-          return next;
-        });
-      }
-    },
-    [branchIds]
+  const expandedThread = useMemo(
+    () => (expandedModelKey ? buildThreadForModel(rounds, expandedModelKey) : []),
+    [rounds, expandedModelKey]
   );
+  const expandedLabel = expandedModelKey
+    ? getModelById(expandedModelKey)?.label ?? expandedModelKey
+    : '';
 
   return (
-    <div className="flex h-full flex-col bg-zinc-50 dark:bg-zinc-950">
-      <header className="border-b border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="mx-auto max-w-5xl">
-          <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Compare models</h1>
-          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-            Select 2–{MAX_SELECTED} models and send one prompt to see responses side by side.
-          </p>
+    <div className="flex h-full flex-col bg-background">
+      <header className="shrink-0 border-b border-border bg-card px-4 py-2 lg:px-6">
+        <div className="flex w-full flex-wrap items-center gap-x-3 gap-y-2">
+          <MessageSquare className="size-5 shrink-0 text-muted-foreground" />
+          <h1 className="text-lg font-semibold text-foreground">New chat</h1>
+          <span className="hidden text-sm text-muted-foreground lg:inline">
+            Choose one or up to {MAX_SELECTED} models, then send a prompt. Follow-ups can refine or combine
+            answers.
+          </span>
         </div>
       </header>
 
-      <div className="flex-1 overflow-y-auto p-4">
-        <form onSubmit={handleSubmit} className="mx-auto max-w-5xl space-y-4">
-          <div>
-            <label className="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-              Prompt
-            </label>
-            <textarea
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              placeholder="Enter a prompt to send to all selected models..."
-              rows={3}
-              disabled={streaming}
-              className="w-full rounded-lg border border-zinc-300 bg-white px-4 py-3 text-zinc-900 placeholder:text-zinc-500 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-400"
-            />
-          </div>
+      <div
+        ref={scrollContainerRef}
+        className="flex-1 overflow-y-auto"
+      >
+        <div className="w-full space-y-8 px-4 py-6 lg:px-6">
+          {rounds.map((round, idx) => (
+            <div key={round.id} className="space-y-3">
+              <div className="rounded-lg border border-border bg-muted/30 px-4 py-3">
+                <span className="text-xs font-medium text-muted-foreground">You</span>
+                <p
+                  className="mt-1 line-clamp-2 min-w-0 break-words whitespace-pre-line text-sm text-foreground"
+                  title={round.prompt}
+                >
+                  {round.prompt}
+                </p>
+              </div>
+              <div className="grid h-[360px] gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr))]">
+                {round.models.map((modelKey) => (
+                  <ModelColumn
+                    key={`${round.id}-${modelKey}`}
+                    modelKey={modelKey}
+                    output={round.outputs[modelKey]?.text ?? ''}
+                    isStreaming={round.streaming}
+                    error={round.outputs[modelKey]?.error}
+                    onPromote={() => handlePromote(modelKey, idx)}
+                    onExpand={() => setExpandedModelKey(modelKey)}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+          {globalError && (
+            <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              <div className="font-medium">Request failed</div>
+              <div className="mt-1">{globalError}</div>
+            </div>
+          )}
+        </div>
+      </div>
 
-          <div>
-            <span className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+      <footer className="shrink-0 border-t border-border bg-card p-4 lg:px-6">
+        <form onSubmit={handleSubmit} className="flex w-full flex-col gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-medium text-muted-foreground">
               Models ({selectedIds.length}/{MAX_SELECTED})
             </span>
-            <div className="flex flex-wrap gap-2">
-              {MODEL_CATALOG.map((m) => (
-                <label
-                  key={m.id}
-                  className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm ${
-                    selectedIds.includes(m.id)
-                      ? 'border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900'
-                      : 'border-zinc-300 bg-white text-zinc-700 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300'
-                  } ${streaming ? 'opacity-60' : ''}`}
+            {selectedIds.map((id) => {
+              const model = getModelById(id);
+              return (
+                <span
+                  key={id}
+                  className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1.5 text-sm font-medium text-foreground ring-1 ring-primary/20"
                 >
-                  <input
-                    type="checkbox"
-                    checked={selectedIds.includes(m.id)}
-                    onChange={() => toggleModel(m.id)}
-                    disabled={streaming || (!selectedIds.includes(m.id) && selectedIds.length >= MAX_SELECTED)}
-                    className="sr-only"
-                  />
-                  {m.label}
-                </label>
-              ))}
-            </div>
+                  {model?.label ?? id}
+                  <button
+                    type="button"
+                    onClick={() => toggleModel(id)}
+                    disabled={isStreaming}
+                    className="rounded-full p-0.5 hover:bg-primary/20 disabled:opacity-50"
+                    aria-label={`Remove ${model?.label ?? id}`}
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                </span>
+              );
+            })}
+            <Popover onOpenChange={(open) => open && setModelSearch('')}>
+              <PopoverTrigger
+                className={cn(
+                  'inline-flex h-7 shrink-0 items-center justify-center gap-1 rounded-lg border border-input bg-transparent px-2.5 text-sm',
+                  'hover:bg-muted disabled:pointer-events-none disabled:opacity-50',
+                  'dark:bg-input/30 dark:hover:bg-input/50'
+                )}
+                disabled={isStreaming || selectedIds.length >= MAX_SELECTED}
+              >
+                <Plus className="size-4" />
+                Add model
+              </PopoverTrigger>
+              <PopoverContent align="start" className="w-64 p-0">
+                <div className="border-b border-border px-3 py-2">
+                  <div className="flex items-center gap-2">
+                    <Search className="size-4 text-muted-foreground" />
+                    <input
+                      type="text"
+                      value={modelSearch}
+                      onChange={(e) => setModelSearch(e.target.value)}
+                      placeholder="Search models..."
+                      className="h-6 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                      autoFocus
+                    />
+                  </div>
+                </div>
+                <div className="max-h-60 overflow-y-auto py-1">
+                  {MODEL_CATALOG.filter(
+                    (m) =>
+                      m.label.toLowerCase().includes(modelSearch.toLowerCase()) ||
+                      m.provider.toLowerCase().includes(modelSearch.toLowerCase())
+                  ).map((m) => (
+                    <label
+                      key={m.id}
+                      className={cn(
+                        'flex cursor-pointer items-center gap-2 px-3 py-2 text-sm transition hover:bg-muted',
+                        isStreaming && 'pointer-events-none opacity-60'
+                      )}
+                    >
+                      <Checkbox
+                        checked={selectedIds.includes(m.id)}
+                        onCheckedChange={() => toggleModel(m.id)}
+                        disabled={
+                          isStreaming ||
+                          (!selectedIds.includes(m.id) && selectedIds.length >= MAX_SELECTED)
+                        }
+                        aria-label={m.label}
+                      />
+                      <span className="truncate">{m.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
           </div>
-
-          <button
-            type="submit"
-            disabled={streaming || !prompt.trim() || selectedIds.length === 0}
-            className="rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
-          >
-            {streaming ? 'Streaming…' : 'Compare'}
-          </button>
+          <div className="flex gap-2">
+            <Input
+              value={inputText}
+              onChange={(e) => setInputText(e.target.value)}
+              placeholder={
+                rounds.length === 0
+                  ? 'Message the selected model(s)...'
+                  : 'Follow-up (e.g. combine the answers)...'
+              }
+              disabled={isStreaming}
+              className="flex-1"
+            />
+            <Button
+              type="submit"
+              disabled={
+                isStreaming || !inputText.trim() || selectedIds.length === 0
+              }
+            >
+              <Send className="size-4" />
+              Send
+            </Button>
+          </div>
         </form>
+      </footer>
 
-        {globalError && (
-          <div className="mx-auto mt-6 max-w-5xl rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200">
-            <div className="font-medium">Compare request failed</div>
-            <div className="mt-1">{globalError}</div>
-          </div>
-        )}
-
-        {selectedIds.length > 0 && (Object.keys(outputs).length > 0 || streaming) && (
-          <div className="mx-auto mt-8 grid max-w-5xl gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {selectedIds.map((modelKey) => (
-              <ModelColumn
-                key={modelKey}
-                modelKey={modelKey}
-                branchId={branchIds[modelKey]}
-                output={
-                  (outputs[modelKey]?.text ?? '') +
-                  (continueStreaming[modelKey] ? '\n\n---\n\n' + continueStreaming[modelKey] : '')
-                }
-                isStreaming={streamingModels.has(modelKey) || !!continueStreaming[modelKey]}
-                error={outputs[modelKey]?.error}
-                onPromote={() => handlePromote(modelKey)}
-                onContinue={handleContinue}
-              />
-            ))}
-          </div>
-        )}
-      </div>
+      <ModelThreadModal
+        open={expandedModelKey !== null}
+        onClose={() => setExpandedModelKey(null)}
+        modelLabel={expandedLabel}
+        turns={expandedThread}
+      />
     </div>
   );
 }

@@ -7,7 +7,7 @@ type PageProps = { params: Promise<{ chatId: string }> };
 export default async function ChatPage({ params }: PageProps) {
   const { chatId } = await params;
   if (chatId === 'new') {
-    redirect(`/chat/${crypto.randomUUID()}`);
+    redirect('/app/compare/new');
   }
 
   let initialMessages: Array<{ id: string; role: string; parts: Array<{ type: string; text?: string }> }> = [];
@@ -26,7 +26,7 @@ export default async function ChatPage({ params }: PageProps) {
 
   return (
     <div className="flex h-screen flex-col">
-      <ChatShell chatId={chatId} initialMessages={initialMessages} />
+      <ChatShell key={chatId} chatId={chatId} initialMessages={initialMessages} />
     </div>
   );
 }

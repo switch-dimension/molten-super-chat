@@ -1,6 +1,7 @@
 'use client';
 
-import { MODEL_CATALOG, getModelById, type CatalogModel } from '@/lib/ai/model-catalog';
+import { MODEL_CATALOG, getModelById } from '@/lib/ai/model-catalog';
+import { cn } from '@/lib/utils';
 
 type ModelPickerProps = {
   value: string;
@@ -20,13 +21,17 @@ export function ModelPicker({ value, onChange, disabled, label = 'Model' }: Mode
   return (
     <div className="flex flex-col gap-1">
       {label && (
-        <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">{label}</span>
+        <span className="text-xs font-medium text-muted-foreground">{label}</span>
       )}
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
-        className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
+        className={cn(
+          'h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm',
+          'transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50',
+          'disabled:pointer-events-none disabled:opacity-50 dark:bg-input/30'
+        )}
       >
         {(['openai', 'anthropic', 'google'] as const).map((provider) => (
           <optgroup key={provider} label={provider.charAt(0).toUpperCase() + provider.slice(1)}>
@@ -39,7 +44,7 @@ export function ModelPicker({ value, onChange, disabled, label = 'Model' }: Mode
         ))}
       </select>
       {current?.description && (
-        <span className="text-xs text-zinc-500 dark:text-zinc-400">{current.description}</span>
+        <span className="text-xs text-muted-foreground">{current.description}</span>
       )}
     </div>
   );
