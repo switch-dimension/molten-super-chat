@@ -9,7 +9,7 @@ export interface CatalogModel {
   description?: string;
 }
 
-/** Default single-chat model and compare defaults (best tier per provider). */
+/** Default model for new chats (OpenAI). Anthropic/Google IDs are available for presets or callers. */
 export const DEFAULT_OPENAI_MODEL_ID = 'openai:gpt-5.4-pro';
 export const DEFAULT_ANTHROPIC_MODEL_ID = 'anthropic:claude-opus-4-6';
 export const DEFAULT_GOOGLE_MODEL_ID = 'google:gemini-3.1-pro-preview';
@@ -49,7 +49,7 @@ export function getDefaultModelId(): string {
   return DEFAULT_OPENAI_MODEL_ID;
 }
 
-/** Initial compare selection: top GPT, Claude, and Gemini (3 columns). */
+/** Initial model selection for new chat: top OpenAI, Anthropic, and Google picks. */
 export function getDefaultCompareModelIds(): string[] {
   return [DEFAULT_OPENAI_MODEL_ID, DEFAULT_ANTHROPIC_MODEL_ID, DEFAULT_GOOGLE_MODEL_ID];
 }

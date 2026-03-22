@@ -3,7 +3,7 @@
 import { getModelById } from '@/lib/ai/model-catalog';
 import { MemoizedMarkdown } from '@/components/ui/memoized-markdown';
 import { Button } from '@/components/ui/button';
-import { ArrowUp } from 'lucide-react';
+import { ArrowUp, Maximize2 } from 'lucide-react';
 
 type ModelColumnProps = {
   modelKey: string;
@@ -12,6 +12,7 @@ type ModelColumnProps = {
   isStreaming?: boolean;
   error?: string;
   onPromote?: () => void;
+  onExpand?: () => void;
 };
 
 export function ModelColumn({
@@ -20,16 +21,30 @@ export function ModelColumn({
   isStreaming,
   error,
   onPromote,
+  onExpand,
 }: ModelColumnProps) {
   const catalog = getModelById(modelKey);
 
   return (
     <div className="flex h-full flex-col overflow-hidden rounded-lg border border-border bg-card">
-      <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-2">
-        <span className="text-sm font-medium text-foreground">
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-3 py-2">
+        <span className="min-w-0 truncate text-sm font-medium text-foreground">
           {catalog?.label ?? modelKey}
         </span>
-        <div className="flex gap-1">
+        <div className="flex shrink-0 gap-1">
+          {onExpand && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="size-8"
+              onClick={onExpand}
+              aria-label={`Expand ${catalog?.label ?? modelKey} thread`}
+              title="Expand thread"
+            >
+              <Maximize2 className="size-4" />
+            </Button>
+          )}
           {onPromote && output && !isStreaming && (
             <Button type="button" variant="secondary" size="sm" onClick={onPromote}>
               <ArrowUp className="size-3" />

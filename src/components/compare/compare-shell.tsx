@@ -1,10 +1,12 @@
 'use client';
 
-import { useCallback, useState, useEffect, useRef } from 'react';
+import { useCallback, useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { GitCompare, Plus, Search, X, Send } from 'lucide-react';
+import { MessageSquare, Plus, Search, X, Send } from 'lucide-react';
 import { formatAiErrorMessage, getApiErrorMessage } from '@/lib/ai/error-message';
+import { ModelThreadModal } from './model-thread-modal';
 import { ModelColumn } from './model-column';
+import { buildThreadForModel } from '@/lib/compare/thread';
 import { MODEL_CATALOG, getDefaultCompareModelIds, getModelById } from '@/lib/ai/model-catalog';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -44,11 +46,12 @@ function buildContextualPrompt(userPrompt: string, previousRound: CompareRound):
 export function CompareShell({ chatId }: CompareShellProps) {
   const router = useRouter();
   const [rounds, setRounds] = useState<CompareRound[]>([]);
-  const [selectedIds, setSelectedIds] = useState<string[]>(getDefaultCompareModelIds());
+  const [selectedIds, setSelectedIds] = useState<string[]>(getDefaultCompareModelIds);
   const [inputText, setInputText] = useState('');
   const [branchIds, setBranchIds] = useState<Record<string, string>>({});
   const [globalError, setGlobalError] = useState<string | null>(null);
   const [modelSearch, setModelSearch] = useState('');
+  const [expandedModelKey, setExpandedModelKey] = useState<string | null>(null);
   const restoredRef = useRef(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -157,7 +160,7 @@ export function CompareShell({ chatId }: CompareShellProps) {
     async (e: React.FormEvent) => {
       e.preventDefault();
       const text = inputText.trim();
-      if (!text || selectedIds.length < 2) return;
+      if (!text || selectedIds.length < 1) return;
 
       setGlobalError(null);
       setInputText('');
@@ -389,14 +392,23 @@ export function CompareShell({ chatId }: CompareShellProps) {
     [rounds, router]
   );
 
+  const expandedThread = useMemo(
+    () => (expandedModelKey ? buildThreadForModel(rounds, expandedModelKey) : []),
+    [rounds, expandedModelKey]
+  );
+  const expandedLabel = expandedModelKey
+    ? getModelById(expandedModelKey)?.label ?? expandedModelKey
+    : '';
+
   return (
     <div className="flex h-full flex-col bg-background">
-      <header className="shrink-0 border-b border-border bg-card px-4 py-2">
-        <div className="mx-auto flex max-w-5xl items-center gap-2">
-          <GitCompare className="size-5 text-muted-foreground" />
-          <h1 className="text-lg font-semibold text-foreground">Compare models</h1>
-          <span className="text-sm text-muted-foreground">
-            Select 2–{MAX_SELECTED} models, then send a prompt. Use follow-ups to refine (e.g. “combine the opinions”).
+      <header className="shrink-0 border-b border-border bg-card px-4 py-2 lg:px-6">
+        <div className="flex w-full flex-wrap items-center gap-x-3 gap-y-2">
+          <MessageSquare className="size-5 shrink-0 text-muted-foreground" />
+          <h1 className="text-lg font-semibold text-foreground">New chat</h1>
+          <span className="hidden text-sm text-muted-foreground lg:inline">
+            Choose one or up to {MAX_SELECTED} models, then send a prompt. Follow-ups can refine or combine
+            answers.
           </span>
         </div>
       </header>
@@ -405,22 +417,28 @@ export function CompareShell({ chatId }: CompareShellProps) {
         ref={scrollContainerRef}
         className="flex-1 overflow-y-auto"
       >
-        <div className="mx-auto max-w-5xl space-y-8 px-4 py-6">
+        <div className="w-full space-y-8 px-4 py-6 lg:px-6">
           {rounds.map((round, idx) => (
             <div key={round.id} className="space-y-3">
               <div className="rounded-lg border border-border bg-muted/30 px-4 py-3">
                 <span className="text-xs font-medium text-muted-foreground">You</span>
-                <p className="mt-1 whitespace-pre-wrap text-sm text-foreground">{round.prompt}</p>
+                <p
+                  className="mt-1 line-clamp-2 min-w-0 break-words whitespace-pre-line text-sm text-foreground"
+                  title={round.prompt}
+                >
+                  {round.prompt}
+                </p>
               </div>
-              <div className="grid h-[360px] gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid h-[360px] gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr))]">
                 {round.models.map((modelKey) => (
                   <ModelColumn
-                    key={modelKey}
+                    key={`${round.id}-${modelKey}`}
                     modelKey={modelKey}
                     output={round.outputs[modelKey]?.text ?? ''}
                     isStreaming={round.streaming}
                     error={round.outputs[modelKey]?.error}
                     onPromote={() => handlePromote(modelKey, idx)}
+                    onExpand={() => setExpandedModelKey(modelKey)}
                   />
                 ))}
               </div>
@@ -428,18 +446,15 @@ export function CompareShell({ chatId }: CompareShellProps) {
           ))}
           {globalError && (
             <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-              <div className="font-medium">Compare request failed</div>
+              <div className="font-medium">Request failed</div>
               <div className="mt-1">{globalError}</div>
             </div>
           )}
         </div>
       </div>
 
-      <footer className="shrink-0 border-t border-border bg-card p-4">
-        <form
-          onSubmit={handleSubmit}
-          className="mx-auto flex max-w-5xl flex-col gap-3"
-        >
+      <footer className="shrink-0 border-t border-border bg-card p-4 lg:px-6">
+        <form onSubmit={handleSubmit} className="flex w-full flex-col gap-3">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-sm font-medium text-muted-foreground">
               Models ({selectedIds.length}/{MAX_SELECTED})
@@ -525,8 +540,8 @@ export function CompareShell({ chatId }: CompareShellProps) {
               onChange={(e) => setInputText(e.target.value)}
               placeholder={
                 rounds.length === 0
-                  ? 'Enter a prompt to send to all selected models...'
-                  : 'Follow-up (e.g. combine the opinions into one)...'
+                  ? 'Message the selected model(s)...'
+                  : 'Follow-up (e.g. combine the answers)...'
               }
               disabled={isStreaming}
               className="flex-1"
@@ -534,18 +549,22 @@ export function CompareShell({ chatId }: CompareShellProps) {
             <Button
               type="submit"
               disabled={
-                isStreaming ||
-                !inputText.trim() ||
-                selectedIds.length === 0 ||
-                (rounds.length === 0 && selectedIds.length < 2)
+                isStreaming || !inputText.trim() || selectedIds.length === 0
               }
             >
               <Send className="size-4" />
-              {rounds.length === 0 ? 'Compare' : 'Send'}
+              Send
             </Button>
           </div>
         </form>
       </footer>
+
+      <ModelThreadModal
+        open={expandedModelKey !== null}
+        onClose={() => setExpandedModelKey(null)}
+        modelLabel={expandedLabel}
+        turns={expandedThread}
+      />
     </div>
   );
 }

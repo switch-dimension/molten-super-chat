@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { UserButton } from '@clerk/nextjs';
-import { MessageSquare, GitCompare, LayoutList, PanelLeftClose } from 'lucide-react';
+import { MessageSquare, LayoutList, PanelLeftClose } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSidebar } from '@/components/sidebar-context';
 import { Button } from '@/components/ui/button';
@@ -33,8 +33,7 @@ export function AppSidebar() {
     : pathname.startsWith('/app/compare/')
       ? pathname.slice('/app/compare/'.length)
       : null;
-  const isNewChat = pathname === '/app/chat/new';
-  const isNewCompare = pathname === '/app/compare/new';
+  const isNewChat = pathname === '/app/compare/new';
 
   const isAppHome = pathname === '/app';
 
@@ -68,13 +67,9 @@ export function AppSidebar() {
         </Button>
       </div>
       <div className="flex flex-col gap-1 p-2">
-        <Link href="/app/chat/new" className={linkClass(isNewChat)}>
+        <Link href="/app/compare/new" className={linkClass(isNewChat)}>
           <MessageSquare className="size-4" />
           New chat
-        </Link>
-        <Link href="/app/compare/new" className={linkClass(isNewCompare)}>
-          <GitCompare className="size-4" />
-          Compare models
         </Link>
       </div>
       <nav className="flex-1 overflow-y-auto px-2 pb-4">
@@ -86,7 +81,7 @@ export function AppSidebar() {
           {threads.map((t) => {
             const href = t.mode === 'chat' ? `/app/chat/${t.id}` : `/app/compare/${t.id}`;
             const isActive = chatId === t.id;
-            const label = t.title || (t.mode === 'chat' ? 'Chat' : 'Compare');
+            const label = t.title || 'Chat';
             return (
               <li key={t.id}>
                 <Link
@@ -100,9 +95,9 @@ export function AppSidebar() {
                   title={label}
                 >
                   <span className="block truncate">{label}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {t.mode === 'chat' ? 'Chat' : 'Compare'}
-                  </span>
+                  {t.mode === 'chat' && (
+                    <span className="text-xs text-muted-foreground">Single-model (legacy)</span>
+                  )}
                 </Link>
               </li>
             );
