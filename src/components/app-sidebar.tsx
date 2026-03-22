@@ -47,7 +47,7 @@ export function AppSidebar() {
     );
 
   return (
-    <aside className="flex w-56 shrink-0 flex-col bg-sidebar">
+    <aside className="flex h-full w-56 shrink-0 flex-col bg-sidebar">
       <div className="flex items-center justify-between gap-1 border-b border-sidebar-border p-2">
         <Link
           href="/app"

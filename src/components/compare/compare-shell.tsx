@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { GitCompare, Plus, Search, X, Send } from 'lucide-react';
 import { formatAiErrorMessage, getApiErrorMessage } from '@/lib/ai/error-message';
 import { ModelColumn } from './model-column';
-import { MODEL_CATALOG, getDefaultModelId, getModelById } from '@/lib/ai/model-catalog';
+import { MODEL_CATALOG, getDefaultCompareModelIds, getModelById } from '@/lib/ai/model-catalog';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
@@ -44,10 +44,7 @@ function buildContextualPrompt(userPrompt: string, previousRound: CompareRound):
 export function CompareShell({ chatId }: CompareShellProps) {
   const router = useRouter();
   const [rounds, setRounds] = useState<CompareRound[]>([]);
-  const [selectedIds, setSelectedIds] = useState<string[]>([
-    getDefaultModelId(),
-    MODEL_CATALOG[1]?.id ?? getDefaultModelId(),
-  ]);
+  const [selectedIds, setSelectedIds] = useState<string[]>(getDefaultCompareModelIds());
   const [inputText, setInputText] = useState('');
   const [branchIds, setBranchIds] = useState<Record<string, string>>({});
   const [globalError, setGlobalError] = useState<string | null>(null);

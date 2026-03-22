@@ -9,6 +9,11 @@ export interface CatalogModel {
   description?: string;
 }
 
+/** Default single-chat model and compare defaults (best tier per provider). */
+export const DEFAULT_OPENAI_MODEL_ID = 'openai:gpt-5.4-pro';
+export const DEFAULT_ANTHROPIC_MODEL_ID = 'anthropic:claude-opus-4-6';
+export const DEFAULT_GOOGLE_MODEL_ID = 'google:gemini-3.1-pro-preview';
+
 export const MODEL_CATALOG: CatalogModel[] = [
   // OpenAI
   { id: 'openai:gpt-5.4', label: 'GPT-5.4', provider: 'openai', description: 'Latest general model' },
@@ -41,5 +46,10 @@ export function getModelsByProvider(provider: CatalogModel['provider']): Catalog
 }
 
 export function getDefaultModelId(): string {
-  return MODEL_CATALOG[0]!.id;
+  return DEFAULT_OPENAI_MODEL_ID;
+}
+
+/** Initial compare selection: top GPT, Claude, and Gemini (3 columns). */
+export function getDefaultCompareModelIds(): string[] {
+  return [DEFAULT_OPENAI_MODEL_ID, DEFAULT_ANTHROPIC_MODEL_ID, DEFAULT_GOOGLE_MODEL_ID];
 }

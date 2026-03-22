@@ -14,10 +14,10 @@ export function AppLayoutClient({
   const { isOpen, toggle } = useSidebar();
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex h-screen overflow-hidden">
       <div
         className={cn(
-          'shrink-0 overflow-hidden border-r border-sidebar-border bg-sidebar transition-[width] duration-200 ease-in-out',
+          'shrink-0 h-full overflow-hidden border-r border-sidebar-border bg-sidebar transition-[width] duration-200 ease-in-out',
           isOpen ? 'w-56' : 'w-0'
         )}
       >

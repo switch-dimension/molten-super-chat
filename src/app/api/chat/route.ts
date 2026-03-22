@@ -1,6 +1,7 @@
 import { type UIMessage } from 'ai';
 import { formatAiErrorMessage } from '@/lib/ai/error-message';
 import { streamChatResponse } from '@/lib/ai/chat';
+import { getDefaultModelId } from '@/lib/ai/model-catalog';
 import { generateChatTitle } from '@/lib/ai/generate-title';
 import { ensureChat, appendChatMessage, getChatWithMessages, getChat, updateChatTitle } from '@/lib/db/chats';
 
@@ -39,7 +40,7 @@ export async function POST(req: Request) {
       return Response.json({ error: 'Missing id or messages' }, { status: 400 });
     }
 
-    const modelId = selectedModel ?? 'openai:gpt-4o';
+    const modelId = selectedModel ?? getDefaultModelId();
 
     await ensureChat(chatId, 'chat');
 
